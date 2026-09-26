@@ -58,7 +58,13 @@ separately.
 - Per task: maximum 5 LLM calls, 12 tool calls, and 90 seconds.
 - Export `solve(task, tools, llm)` as a normal synchronous function.
 - Do not modify tests or access files/network outside the supplied interfaces.
+- Do not add new external tools or modify the supplied `tools` and `llm`
+  interfaces. The evaluator provides only the documented methods.
 - Other changed files are ignored.
+
+You may add any helper functions, classes, prompts, parsers, or orchestration
+logic you need inside `agent.py`. These are part of your agent implementation,
+not new external tools.
 
 Add a short module docstring explaining your design under these headings:
 `TOOLS`, `LOOP`, `FAILURE HANDLING`, and `STOPPING`.
@@ -89,6 +95,9 @@ the model page before each official evaluation session.
 
 Your `solve()` function receives `tools` and `llm`. These are the only supported
 ways to inspect the repository, change code, run tests, and call the model.
+Candidates cannot register additional tool methods. If the challenge owner adds
+a tool in the future, it must be added to `runtime.py` and made available equally
+to every candidate.
 
 ### `llm.ask(messages)`
 
