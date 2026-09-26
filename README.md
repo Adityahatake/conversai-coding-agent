@@ -10,6 +10,22 @@ Suggested time: **3 hours**.
 The included `agent.py` is intentionally a small starter implementation. It is
 designed to be easy to understand, not to meet the hiring score without changes.
 
+## Repository Map
+
+| Path | Purpose |
+| --- | --- |
+| `agent.py` | Starter implementation and the only file candidates submit. Candidates may modify or replace it completely. |
+| `runtime.py` | Fixed evaluation harness containing the OpenRouter client, repository tools, and call limits. Do not modify it. |
+| `validation.py` | Static rules for the submitted `agent.py`, including size, line-count, signature, and import restrictions. |
+| `check_agent.py` | Runs the static submission validation locally. |
+| `run_practice.py` | Copies the repository, injects a case's visible test, runs the agent, and reports the result. |
+| `practice-repo/` | Shared pytest source snapshot that the agent modifies inside a temporary copy for every case. |
+| `practice-cases/` | Ten public task prompts and their visible tests. |
+| `requirements.txt` | Python dependencies needed by the challenge runner and pytest snapshot. |
+
+Private regression tests and solution provenance are maintained separately by
+the challenge owner and are not included in this repository.
+
 ## Submission
 
 Submit only `agent.py`.
@@ -23,10 +39,27 @@ Submit only `agent.py`.
 Add a short module docstring explaining your design under these headings:
 `TOOLS`, `LOOP`, `FAILURE HANDLING`, and `STOPPING`.
 
+## Fixed Evaluation Model
+
+Candidates may use any coding assistant while developing their submission, but
+the submitted agent does **not** choose its runtime model. Every official run
+uses this fixed OpenRouter model and configuration from `runtime.py`:
+
+- Model: `stealth/space-bunny-alpha`
+- API: OpenRouter's OpenAI-compatible chat-completions endpoint
+- Temperature: `0.0`
+- Maximum output: `4,000` tokens per model call
+- Maximum model calls: `5` per task
+
+Use only the supplied `llm.ask(messages)` interface inside `agent.py`. Do not
+create another API client, select another model, or make direct network calls.
+The `OPENROUTER_API_KEY` environment variable is used by the runner and is not
+available to the submitted agent as a supported interface.
+
 ## Available Interfaces
 
 ```python
-response = llm.ask(messages)          # fixed OpenRouter model
+response = llm.ask(messages)          # fixed stealth/space-bunny-alpha model
 tools.list_files()
 tools.read_file(path)                 # oversized files return head + tail
 tools.write_file(path, content)       # complete-file write; tests are read-only
