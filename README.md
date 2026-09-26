@@ -25,9 +25,10 @@ designed to be easy to understand, not to meet the hiring score without changes.
 Private regression tests and solution provenance are maintained separately by
 the challenge owner and are not included in this repository.
 
-## Submission
+## Agent Requirements
 
-Submit only `agent.py`.
+Candidates work only in `agent.py`. Submission instructions will be provided
+separately.
 
 - Maximum 280 lines and 20 KB.
 - Per task: maximum 5 LLM calls, 12 tool calls, and 90 seconds.
@@ -165,17 +166,9 @@ Each of the 10 cases is worth one point:
 The total score is therefore out of 10. If two candidates have the same score,
 the candidate using fewer LLM calls ranks first, followed by fewer tool calls.
 
-### Recommended Hiring Bar
-
-- **0–3:** below the recommended benchmark.
-- **4:** borderline; review the implementation and rerun once.
-- **5–7:** passes the benchmark.
-- **8–10:** exceptional.
-
-The minimum recommended passing score is **5/10**. Because model output can vary,
-record the score and call counts for each official run. Rerun borderline scores
-once. Reject agents that hardcode task names, test contents, or known fixes; the
-submission must use a general orchestration strategy.
+Because model output can vary, record the score and call counts for each official
+run. Reject agents that hardcode task names, test contents, or known fixes; the
+submitted agent must use a general orchestration strategy.
 
 ## Repository Rules
 
