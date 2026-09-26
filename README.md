@@ -10,6 +10,30 @@ Suggested time: **3 hours**.
 The included `agent.py` is intentionally a small starter implementation. It is
 designed to be easy to understand, not to meet the hiring score without changes.
 
+## What “Improve `agent.py`” Means
+
+You are building the **orchestration layer** around the supplied model. For each
+case, the grader calls:
+
+```python
+solve(task, tools, llm)
+```
+
+Your implementation decides how to use the limited model and tool calls to solve
+the task. A stronger agent might:
+
+- identify the most relevant source and test files;
+- give the model focused context instead of the entire repository;
+- ask for structured, safe edits that fit within the output limit;
+- validate model responses before changing files;
+- run tests and use failures for a repair attempt;
+- stop promptly when the task is solved or no safe progress remains.
+
+You may reorganize or completely replace the starter implementation. You are
+**not** expected to manually fix `practice-repo/`, modify the model, train a new
+model, or hardcode solutions for the provided task names. The goal is one general
+`agent.py` that can handle different repository issues.
+
 ## Repository Map
 
 | Path | Purpose |
