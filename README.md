@@ -46,6 +46,8 @@ the submitted agent does **not** choose its runtime model. Every official run
 uses this fixed OpenRouter model and configuration from `runtime.py`:
 
 - Model: `stealth/space-bunny-alpha`
+- Model page: https://openrouter.ai/stealth/space-bunny-alpha
+- Pricing: currently free on OpenRouter (`$0` input and output token pricing)
 - API: OpenRouter's OpenAI-compatible chat-completions endpoint
 - Temperature: `0.0`
 - Maximum output: `4,000` tokens per model call
@@ -55,6 +57,9 @@ Use only the supplied `llm.ask(messages)` interface inside `agent.py`. Do not
 create another API client, select another model, or make direct network calls.
 The `OPENROUTER_API_KEY` environment variable is used by the runner and is not
 available to the submitted agent as a supported interface.
+An OpenRouter API key is still required even though the model is currently free.
+Model availability and pricing may change, so the challenge owner should verify
+the model page before each official evaluation session.
 
 ## Available Interfaces
 
