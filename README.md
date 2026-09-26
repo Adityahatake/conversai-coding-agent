@@ -15,10 +15,9 @@ designed to be easy to understand, not to meet the hiring score without changes.
 | Path | Purpose |
 | --- | --- |
 | `agent.py` | Starter implementation and the only file candidates submit. Candidates may modify or replace it completely. |
-| `runtime.py` | Fixed evaluation harness containing the OpenRouter client, repository tools, and call limits. Do not modify it. |
-| `validation.py` | Static rules for the submitted `agent.py`, including size, line-count, signature, and import restrictions. |
-| `check_agent.py` | Checks only the submission rules. It does not call the model or run a coding task. |
-| `run_practice.py` | Runs the agent on one or all practice tasks. It calls OpenRouter, creates a temporary repository copy, runs tests, and reports usage. |
+| `check_agent.py` | Validates `agent.py`: filename, syntax, size, line count, function signature, required documentation, and forbidden imports. It makes no API calls and runs no task cases. |
+| `run_practice.py` | Runs one or all task cases. It calls OpenRouter, gives the agent a temporary repository copy, executes tests, and reports pass/fail plus call usage. |
+| `runtime.py` | Support code used by `run_practice.py`: the fixed model client, repository tools, limits, and test execution. Candidates do not run or modify it directly. |
 | `practice-repo/` | Shared pytest source snapshot that the agent modifies inside a temporary copy for every case. |
 | `practice-cases/` | Ten public task prompts and their visible tests. |
 | `requirements.txt` | Python dependencies needed by the challenge runner and pytest snapshot. |
