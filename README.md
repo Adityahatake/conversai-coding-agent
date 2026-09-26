@@ -17,8 +17,8 @@ designed to be easy to understand, not to meet the hiring score without changes.
 | `agent.py` | Starter implementation and the only file candidates submit. Candidates may modify or replace it completely. |
 | `runtime.py` | Fixed evaluation harness containing the OpenRouter client, repository tools, and call limits. Do not modify it. |
 | `validation.py` | Static rules for the submitted `agent.py`, including size, line-count, signature, and import restrictions. |
-| `check_agent.py` | Runs the static submission validation locally. |
-| `run_practice.py` | Copies the repository, injects a case's visible test, runs the agent, and reports the result. |
+| `check_agent.py` | Checks only the submission rules. It does not call the model or run a coding task. |
+| `run_practice.py` | Runs the agent on one or all practice tasks. It calls OpenRouter, creates a temporary repository copy, runs tests, and reports usage. |
 | `practice-repo/` | Shared pytest source snapshot that the agent modifies inside a temporary copy for every case. |
 | `practice-cases/` | Ten public task prompts and their visible tests. |
 | `requirements.txt` | Python dependencies needed by the challenge runner and pytest snapshot. |
@@ -63,18 +63,65 @@ the model page before each official evaluation session.
 
 ## Available Interfaces
 
+Your `solve()` function receives `tools` and `llm`. These are the only supported
+ways to inspect the repository, change code, run tests, and call the model.
+
+### `llm.ask(messages)`
+
+Sends an OpenAI-style message list to the fixed model and returns its response
+as a string. Every call counts toward the limit of five model calls.
+
 ```python
-response = llm.ask(messages)          # fixed stealth/space-bunny-alpha model
-tools.list_files()
-tools.read_file(path)                 # oversized files return head + tail
-tools.write_file(path, content)       # complete-file write; tests are read-only
-tools.patch_file(path, replacements)  # atomic exact-text replacements
-tools.run_tests()
+response = llm.ask([
+    {"role": "system", "content": "Return JSON."},
+    {"role": "user", "content": "Find the bug."},
+])
 ```
 
-Each `patch_file` replacement is `{"old": "...", "new": "..."}` with an
-optional 1-based `occurrence`. One `patch_file` call can contain up to eight
-replacements for one source file and counts as one tool call.
+### `tools.list_files()`
+
+Returns the repository's file paths as a newline-separated string. It does not
+return file contents.
+
+### `tools.read_file(path)`
+
+Returns a UTF-8 text file's contents. For a file larger than the output limit,
+the tool returns its beginning and end with an omission marker in the middle.
+
+### `tools.write_file(path, content)`
+
+Replaces an entire source file. Use this for small files. Test files are
+read-only, and files larger than 50 KB cannot be written with this method.
+
+### `tools.patch_file(path, replacements)`
+
+Applies small exact-text replacements without returning or rewriting the entire
+file. This is the preferred way to modify large files.
+
+```python
+tools.patch_file(
+    "src/example.py",
+    [
+        {
+            "old": "return old_value",
+            "new": "return new_value",
+        }
+    ],
+)
+```
+
+The `old` text must exist exactly. If it occurs more than once, add
+`"occurrence": 2` to select the second match. A call may contain up to eight
+replacements, all for the same file. The operation is atomic: if any replacement
+is invalid, the file is not changed.
+
+### `tools.run_tests()`
+
+Runs the visible tests and returns a string beginning with `Exit code: 0` on
+success or a nonzero exit code on failure. The output includes failure details
+that can be sent back to the model for a repair attempt.
+
+Every call to a `tools` method counts toward the limit of 12 tool calls.
 
 ## Setup
 
@@ -102,24 +149,34 @@ python run_practice.py --case 01_pytest_monkeypatch
 python run_practice.py --all
 ```
 
+Use `check_agent.py` first because it is fast and makes no API calls. Use
+`run_practice.py` afterward to test actual agent behavior; it consumes OpenRouter
+requests.
+
 ## Evaluation
 
-The grader runs the 10 task prompts in clean repository copies and adds private
-regression tests. A task scores one point only when both its visible and private
-tests pass. The main score is solved tasks; ties use fewer LLM calls, then fewer
-tool calls.
+Each of the 10 cases is worth one point:
+
+1. The grader creates a fresh copy of `practice-repo/`.
+2. It gives the task text, `tools`, and `llm` to the submitted `solve()` function.
+3. The agent may inspect files, edit source, and run the visible tests.
+4. After the agent stops, the grader runs both the visible and private tests.
+5. The case earns one point only if both test groups pass.
+
+The total score is therefore out of 10. If two candidates have the same score,
+the candidate using fewer LLM calls ranks first, followed by fewer tool calls.
 
 ### Recommended Hiring Bar
 
-- **5/10 or higher:** passes the technical benchmark.
-- **4/10:** borderline; review the approach and rerun once.
-- **0–3/10:** below the recommended benchmark.
-- **8–10/10:** exceptional.
+- **0–3:** below the recommended benchmark.
+- **4:** borderline; review the implementation and rerun once.
+- **5–7:** passes the benchmark.
+- **8–10:** exceptional.
 
-Model output can vary even with temperature set to zero. Record the model, date,
-score, LLM calls, and tool calls for every official run. Do not reward solutions
-that hardcode task names, issue numbers, test contents, or known fixes. The
-submitted `agent.py` must implement a general orchestration strategy.
+The minimum recommended passing score is **5/10**. Because model output can vary,
+record the score and call counts for each official run. Rerun borderline scores
+once. Reject agents that hardcode task names, test contents, or known fixes; the
+submission must use a general orchestration strategy.
 
 ## Repository Rules
 
