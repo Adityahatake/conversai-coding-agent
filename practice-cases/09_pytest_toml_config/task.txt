@@ -1,0 +1,1 @@
+Fix top-level pytest TOML option validation in src/_pytest/config/findpaths.py. A pytest.toml or .pytest.toml file containing top-level scalar options but no [pytest] table must raise UsageError listing those option names instead of silently ignoring them. Empty files and files containing only unrelated tables remain valid empty pytest configurations. Run the tests.

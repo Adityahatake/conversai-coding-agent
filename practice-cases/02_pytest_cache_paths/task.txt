@@ -1,0 +1,1 @@
+Fix the cache path validation bug in src/_pytest/cacheprovider.py. Cache.get, Cache.set, and Cache.mkdir must reject absolute paths and traversal keys that resolve outside their designated cache subdirectory. Internal normalization such as plugin/sub/../value must remain valid. Do not rely on the current working directory, and do not create files outside the cache. Run the tests.

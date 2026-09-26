@@ -1,0 +1,1 @@
+Fix large finite Decimal comparisons in src/_pytest/python_api.py. pytest.approx must handle finite Decimal values outside the float range without converting them to float infinity. Decimal NaN and Infinity behavior must remain correct, and ordinary float behavior must not regress. Run the tests.

@@ -1,0 +1,1 @@
+Fix zero-inode handling in src/_pytest/pathlib.py. samefile_nofollow must not trust os.path.samestat when either lstat result has st_ino == 0, because filesystems without file IDs can otherwise make distinct paths appear identical. Return False for an unknown zero inode and preserve normal same-file behavior. Run the tests.

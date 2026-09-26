@@ -1,0 +1,1 @@
+Fix the compact assertion diff bug in src/_pytest/assertion/compare_text.py. For equal-length strings that differ near the beginning but share a long suffix, the compact assertion diff must detect and skip the identical trailing characters. Keep the existing threshold and verbose behavior. Run the tests.

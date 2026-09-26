@@ -1,0 +1,365 @@
+# mypy: allow-untyped-defs
+from __future__ import annotations
+
+import argparse
+import locale
+import os
+from pathlib import Path
+import shlex
+import subprocess
+import sys
+
+from _pytest.config import argparsing as parseopt
+from _pytest.config.exceptions import UsageError
+from _pytest.monkeypatch import MonkeyPatch
+from _pytest.pytester import Pytester
+import pytest
+
+
+@pytest.fixture
+def parser() -> parseopt.Parser:
+    return parseopt.Parser(_ispytest=True)
+
+
+class TestParser:
+    def test_no_help_by_default(self) -> None:
+        parser = parseopt.Parser(usage="xyz", _ispytest=True)
+        with pytest.raises(UsageError):
+            parser.parse(["-h"])
+
+    def test_custom_prog(self, parser: parseopt.Parser) -> None:
+        """Custom prog can be set for `argparse.ArgumentParser`."""
+        assert parser.optparser.prog == argparse.ArgumentParser().prog
+        parser.prog = "custom-prog"
+        assert parser.prog == "custom-prog"
+        assert parser.optparser.prog == "custom-prog"
+
+    def test_argument(self) -> None:
+        parser = argparse.ArgumentParser()
+
+        action = parser.add_argument("-a")
+        argument = parseopt.Argument(action)
+        assert argument.names() == ["-a"]
+        assert argument.dest == "a"
+
+        action = parser.add_argument("-b", "--boop")
+        argument = parseopt.Argument(action)
+        assert argument.names() == ["-b", "--boop"]
+        assert argument.dest == "boop"
+
+        action = parser.add_argument("-c", "--coop", dest="abc")
+        argument = parseopt.Argument(action)
+        assert argument.dest == "abc"
+        assert (
+            str(argument)
+            == "Argument(opts: ['-c', '--coop'], dest: 'abc', default: None)"
+        )
+
+    def test_argument_type(self) -> None:
+        parser = argparse.ArgumentParser()
+
+        action = parser.add_argument("-a", dest="aa", type=int)
+        argument = parseopt.Argument(action)
+        assert argument.type is int
+
+        action = parser.add_argument("-b", dest="bb", type=str)
+        argument = parseopt.Argument(action)
+        assert argument.type is str
+
+        action = parser.add_argument("-c", dest="cc", type=float)
+        argument = parseopt.Argument(action)
+        assert argument.type is float
+
+        action = parser.add_argument("-d", dest="dd", type=str, choices=["red", "blue"])
+        argument = parseopt.Argument(action)
+        assert argument.type is str
+
+    def test_group_add_and_get(self, parser: parseopt.Parser) -> None:
+        group = parser.getgroup("hello")
+        assert group.name == "hello"
+
+    def test_getgroup_simple(self, parser: parseopt.Parser) -> None:
+        group = parser.getgroup("hello")
+        assert group.name == "hello"
+        group2 = parser.getgroup("hello")
+        assert group2 is group
+
+    def test_group_ordering(self, parser: parseopt.Parser) -> None:
+        parser.getgroup("1")
+        parser.getgroup("2")
+        parser.getgroup("3", after="1")
+        groups = parser._groups
+        groups_names = [x.name for x in groups]
+        assert groups_names == ["_anonymous", "1", "3", "2"]
+
+    def test_group_addoption(self) -> None:
+        optparser = argparse.ArgumentParser()
+        arggroup = optparser.add_argument_group("hello")
+        group = parseopt.OptionGroup(arggroup, "hello", None, _ispytest=True)
+        group.addoption("--option1", action="store_true")
+        assert len(group.options) == 1
+        assert isinstance(group.options[0], parseopt.Argument)
+
+    def test_group_addoption_conflict(self) -> None:
+        optparser = argparse.ArgumentParser()
+        arggroup = optparser.add_argument_group("hello again")
+        group = parseopt.OptionGroup(arggroup, "hello again", None, _ispytest=True)
+        group.addoption("--option1", "--option-1", action="store_true")
+        with pytest.raises(ValueError) as err:
+            group.addoption("--option1", "--option-one", action="store_true")
+        assert str({"--option1"}) in str(err.value)
+
+    def test_group_shortopt_lowercase(self, parser: parseopt.Parser) -> None:
+        group = parser.getgroup("hello")
+        with pytest.raises(ValueError):
+            group.addoption("-x", action="store_true")
+        assert len(group.options) == 0
+        group._addoption("-x", action="store_true")
+        assert len(group.options) == 1
+
+    def test_parser_addoption(self, parser: parseopt.Parser) -> None:
+        group = parser.getgroup("custom options")
+        assert len(group.options) == 0
+        group.addoption("--option1", action="store_true")
+        assert len(group.options) == 1
+
+    def test_parse(self, parser: parseopt.Parser) -> None:
+        parser.addoption("--hello", dest="hello", action="store")
+        args = parser.parse(["--hello", "world"])
+        assert args.hello == "world"
+        assert not getattr(args, parseopt.FILE_OR_DIR)
+
+    def test_parse2(self, parser: parseopt.Parser) -> None:
+        args = parser.parse([Path(".")])
+        assert getattr(args, parseopt.FILE_OR_DIR)[0] == "."
+
+    # Warning ignore because of:
+    # https://github.com/python/cpython/issues/85308
+    # Can be removed once Python<3.12 support is dropped.
+    @pytest.mark.filterwarnings("ignore:'encoding' argument not specified")
+    def test_parse_from_file(self, parser: parseopt.Parser, tmp_path: Path) -> None:
+        tests = [".", "some.py::Test::test_method[param0]", "other/test_file.py"]
+        args_file = tmp_path / "tests.txt"
+        args_file.write_text("\n".join(tests), encoding="utf-8")
+        args = parser.parse([f"@{args_file.absolute()}"])
+        assert getattr(args, parseopt.FILE_OR_DIR) == tests
+
+    def test_parse_known_args(self, parser: parseopt.Parser) -> None:
+        parser.parse_known_args([Path(".")])
+        parser.addoption("--hello", action="store_true")
+        ns = parser.parse_known_args(["x", "--y", "--hello", "this"])
+        assert ns.hello is True
+        assert ns.file_or_dir == ["x", "this"]
+
+    def test_parse_known_and_unknown_args(self, parser: parseopt.Parser) -> None:
+        parser.addoption("--hello", action="store_true")
+        ns, unknown = parser.parse_known_and_unknown_args(
+            ["x", "--y", "--hello", "this"]
+        )
+        assert ns.hello is True
+        assert ns.file_or_dir == ["x", "this"]
+        assert unknown == ["--y"]
+
+    def test_parse_will_set_default(self, parser: parseopt.Parser) -> None:
+        parser.addoption("--hello", dest="hello", default="x", action="store")
+        option = parser.parse([])
+        assert option.hello == "x"
+
+    def test_parse_set_options(self, parser: parseopt.Parser) -> None:
+        parser.addoption("--hello", dest="hello", action="store")
+        parser.addoption("--world", dest="world", default=42)
+
+        option = argparse.Namespace()
+        parser.parse(["--hello", "world"], option)
+        assert option.hello == "world"
+        assert option.world == 42
+        assert getattr(option, parseopt.FILE_OR_DIR) == []
+
+    def test_parse_special_destination(self, parser: parseopt.Parser) -> None:
+        parser.addoption("--ultimate-answer", type=int)
+        args = parser.parse(["--ultimate-answer", "42"])
+        assert args.ultimate_answer == 42
+
+    def test_parse_split_positional_arguments(self, parser: parseopt.Parser) -> None:
+        parser.addoption("-R", action="store_true")
+        parser.addoption("-S", action="store_false")
+        args = parser.parse(["-R", "4", "2", "-S"])
+        assert getattr(args, parseopt.FILE_OR_DIR) == ["4", "2"]
+        args = parser.parse(["-R", "-S", "4", "2", "-R"])
+        assert getattr(args, parseopt.FILE_OR_DIR) == ["4", "2"]
+        assert args.R is True
+        assert args.S is False
+        args = parser.parse(["-R", "4", "-S", "2"])
+        assert getattr(args, parseopt.FILE_OR_DIR) == ["4", "2"]
+        assert args.R is True
+        assert args.S is False
+
+    def test_drop_short_helper(self) -> None:
+        parser = argparse.ArgumentParser(
+            formatter_class=parseopt.DropShorterLongHelpFormatter, allow_abbrev=False
+        )
+        parser.add_argument(
+            "-t", "--twoword", "--duo", "--two-word", "--two", help="foo"
+        )
+        # throws error on --deux only!
+        parser.add_argument(
+            "-d", "--deuxmots", "--deux-mots", action="store_true", help="foo"
+        )
+        parser.add_argument("-s", action="store_true", help="single short")
+        parser.add_argument("--abc", "-a", action="store_true", help="bar")
+        parser.add_argument("--klm", "-k", "--kl-m", action="store_true", help="bar")
+        parser.add_argument(
+            "-P", "--pq-r", "-p", "--pqr", action="store_true", help="bar"
+        )
+        parser.add_argument(
+            "--zwei-wort", "--zweiwort", "--zweiwort", action="store_true", help="bar"
+        )
+        parser.add_argument(
+            "-x", "--exit-on-first", "--exitfirst", action="store_true", help="spam"
+        )
+        parser.add_argument("files_and_dirs", nargs="*")
+        args = parser.parse_args(["-k", "--duo", "hallo", "--exitfirst"])
+        assert args.twoword == "hallo"
+        assert args.klm is True
+        assert args.zwei_wort is False
+        assert args.exit_on_first is True
+        assert args.s is False
+        args = parser.parse_args(["--deux-mots"])
+        with pytest.raises(AttributeError):
+            assert args.deux_mots is True
+        assert args.deuxmots is True
+        args = parser.parse_args(["file", "dir"])
+        assert "|".join(args.files_and_dirs) == "file|dir"
+
+    def test_drop_short_0(self, parser: parseopt.Parser) -> None:
+        parser.addoption("--funcarg", "--func-arg", action="store_true")
+        parser.addoption("--abc-def", "--abc-def", action="store_true")
+        parser.addoption("--klm-hij", action="store_true")
+        with pytest.raises(UsageError):
+            parser.parse(["--funcarg", "--k"])
+
+    def test_drop_short_2(self, parser: parseopt.Parser) -> None:
+        parser.addoption("--func-arg", "--doit", action="store_true")
+        args = parser.parse(["--doit"])
+        assert args.func_arg is True
+
+    def test_drop_short_3(self, parser: parseopt.Parser) -> None:
+        parser.addoption("--func-arg", "--funcarg", "--doit", action="store_true")
+        args = parser.parse(["abcd"])
+        assert args.func_arg is False
+        assert args.file_or_dir == ["abcd"]
+
+    def test_drop_short_help0(self, parser: parseopt.Parser) -> None:
+        parser.addoption("--func-args", "--doit", help="foo", action="store_true")
+        parser.parse([])
+        help = parser.optparser.format_help()
+        assert "--func-args, --doit  foo" in help
+
+    # testing would be more helpful with all help generated
+    def test_drop_short_help1(self, parser: parseopt.Parser) -> None:
+        group = parser.getgroup("general")
+        group.addoption("--doit", "--func-args", action="store_true", help="foo")
+        group._addoption(
+            "-h",
+            "--help",
+            action="store_true",
+            dest="help",
+            help="show help message and configuration info",
+        )
+        parser.parse(["-h"])
+        help = parser.optparser.format_help()
+        assert "-doit, --func-args  foo" in help
+
+    def test_multiple_metavar_help(self, parser: parseopt.Parser) -> None:
+        """
+        Help text for options with a metavar tuple should display help
+        in the form "--preferences=value1 value2 value3" (#2004).
+        """
+        group = parser.getgroup("general")
+        group.addoption(
+            "--preferences", metavar=("value1", "value2", "value3"), nargs=3
+        )
+        group._addoption("-h", "--help", action="store_true", dest="help")
+        parser.parse(["-h"])
+        help = parser.optparser.format_help()
+        assert "--preferences=value1 value2 value3" in help
+
+
+def test_argcomplete(pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
+    if sys.version_info >= (3, 11):
+        # New in Python 3.11, ignores utf-8 mode
+        encoding = locale.getencoding()
+    else:
+        encoding = locale.getpreferredencoding(False)
+    try:
+        bash_version = subprocess.run(
+            ["bash", "--version"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            check=True,
+            text=True,
+            encoding=encoding,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError):
+        pytest.skip("bash is not available")
+    if "GNU bash" not in bash_version:
+        # See #7518.
+        pytest.skip("not a real bash")
+
+    script = str(pytester.path.joinpath("test_argcomplete"))
+
+    with open(str(script), "w", encoding="utf-8") as fp:
+        # redirect output from argcomplete to stdin and stderr is not trivial
+        # http://stackoverflow.com/q/12589419/1307905
+        # so we use bash
+        fp.write(
+            f'COMP_WORDBREAKS="$COMP_WORDBREAKS" {shlex.quote(sys.executable)} -m pytest 8>&1 9>&2'
+        )
+    # alternative would be extended Pytester.{run(),_run(),popen()} to be able
+    # to handle a keyword argument env that replaces os.environ in popen or
+    # extends the copy, advantage: could not forget to restore
+    monkeypatch.setenv("_ARGCOMPLETE", "1")
+    monkeypatch.setenv("_ARGCOMPLETE_IFS", "\x0b")
+    monkeypatch.setenv("COMP_WORDBREAKS", " \\t\\n\"\\'><=;|&(:")
+
+    arg = "--fu"
+    monkeypatch.setenv("COMP_LINE", "pytest " + arg)
+    monkeypatch.setenv("COMP_POINT", str(len("pytest " + arg)))
+    result = pytester.run("bash", str(script), arg)
+    if result.ret == 255:
+        # argcomplete not found
+        pytest.skip("argcomplete not available")
+    elif not result.stdout.str():
+        pytest.skip(
+            f"bash provided no output on stdout, argcomplete not available? (stderr={result.stderr.str()!r})"
+        )
+    else:
+        result.stdout.fnmatch_lines(["--funcargs", "--fulltrace"])
+    os.mkdir("test_argcomplete.d")
+    arg = "test_argc"
+    monkeypatch.setenv("COMP_LINE", "pytest " + arg)
+    monkeypatch.setenv("COMP_POINT", str(len("pytest " + arg)))
+    result = pytester.run("bash", str(script), arg)
+    result.stdout.fnmatch_lines(["test_argcomplete", "test_argcomplete.d/"])
+
+
+def test_argument_repr_uninitialized() -> None:
+    """Argument.__repr__ should not crash if _action is not set yet."""
+    arg = parseopt.Argument.__new__(parseopt.Argument)
+    assert repr(arg) == "Argument(<uninitialized>)"
+
+
+def test_argument_repr_initialized(parser: parseopt.Parser) -> None:
+    """Argument.__repr__ with properly initialized options."""
+    # Without type
+    parser.addoption("--myflag", dest="myflag", help="test flag")
+    option = parser._anonymous.options[-1]
+    assert repr(option) == "Argument(opts: ['--myflag'], dest: 'myflag', default: None)"
+
+    # With type
+    parser.addoption("--count", type=int, dest="count", help="count")
+    option = parser._anonymous.options[-1]
+    assert (
+        repr(option)
+        == "Argument(opts: ['--count'], dest: 'count', type: <class 'int'>, default: None)"
+    )

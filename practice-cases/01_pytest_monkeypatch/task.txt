@@ -1,0 +1,1 @@
+Fix the mutation bookkeeping bug in src/_pytest/monkeypatch.py. MonkeyPatch.delattr, setitem, and delitem currently record undo entries before attempting mutations. If a mutation raises, undo() later retries a mutation that never succeeded and can raise again. Record undo state only after each mutation succeeds, while preserving successful undo behavior. Run the tests.

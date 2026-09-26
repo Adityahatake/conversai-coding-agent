@@ -1,0 +1,1 @@
+Fix exception-group chain rendering in src/_pytest/_code/code.py. When an ExceptionGroup is raised from another exception, its rendered traceback currently repeats the cause or context chain. Render every cause, context separator, exception group, and nested exception exactly once while preserving ordinary exception-chain rendering. Run the tests.
