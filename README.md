@@ -51,8 +51,7 @@ the challenge owner and are not included in this repository.
 
 ## Agent Requirements
 
-Candidates work only in `agent.py`. Submission instructions will be provided
-separately.
+Candidates implement their solution only in `agent.py`.
 
 - Maximum 280 lines and 20 KB.
 - Per task: maximum 5 LLM calls, 12 tool calls, and 90 seconds.
@@ -188,6 +187,42 @@ python run_practice.py --all
 Use `check_agent.py` first because it is fast and makes no API calls. Use
 `run_practice.py` afterward to test actual agent behavior; it consumes OpenRouter
 requests.
+
+## Submission
+
+Submit exactly two files:
+
+1. **`agent.py`** — your final general-purpose orchestration implementation.
+2. **`REPORT.md` or `REPORT.pdf`** — a short experiment report, preferably one
+   page and no more than two pages.
+
+The report must be written in your own words. Do not use ChatGPT, Codex, Claude,
+or another AI system to draft or rewrite it. We want to understand your own
+reasoning and what you learned while developing the agent.
+
+Try at least **10 meaningful variations** of your agent before selecting the
+final version. A variation should change an orchestration decision, such as file
+selection, context construction, prompting, output parsing, patch validation,
+test usage, retry behavior, failure recovery, or stopping logic. Ten cosmetic
+prompt rewrites do not count as ten meaningful variations.
+
+For each variation, briefly record:
+
+| Iteration | What you changed | Why you tried it | Cases run and result |
+| --- | --- | --- | --- |
+| 1 | Example: added visible-test inspection | Give the model the expected behavior | 2/3 selected cases passed |
+
+You do not need to run all 10 cases after every small iteration. State which
+cases you ran and the observed result. For your final `agent.py`, run all 10
+public cases and report:
+
+- the final number of public cases passed out of 10;
+- total or per-case LLM and tool-call usage;
+- the most important improvements that produced the final result;
+- what happened on the remaining failures and what you would try next.
+
+Keep the report factual and concise. We care more about clear engineering
+reasoning and honest failure analysis than polished prose.
 
 ## Evaluation
 
