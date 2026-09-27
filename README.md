@@ -224,6 +224,68 @@ public cases and report:
 Keep the report factual and concise. We care more about clear engineering
 reasoning and honest failure analysis than polished prose.
 
+## Frequently Asked Questions
+
+### 1. What am I expected to build?
+
+Improve `agent.py` into a general coding-agent orchestration layer that can
+inspect a repository, ask the supplied model for help, edit source code, run
+tests, and recover from failures.
+
+### 2. Which files may I modify?
+
+Develop and submit only `agent.py`. You may read the rest of the repository to
+understand the environment, but changes to other files are ignored during
+evaluation.
+
+### 3. May I use AI coding assistants while developing?
+
+Yes. You may use Codex, Claude Code, ChatGPT, or another development assistant
+while working on `agent.py`. However, the experiment report must be written in
+your own words without AI drafting or rewriting.
+
+### 4. May I add custom tools or helper functions?
+
+Yes. They must live inside `agent.py` and operate through the supplied `tools`
+and `llm` objects. They cannot directly access the filesystem, environment,
+subprocesses, network, or another model API.
+
+### 5. May I change the model or runtime limits?
+
+No. Official evaluation always uses the fixed model and limits defined in
+`runtime.py`. Your solution should make effective use of those constraints.
+
+### 6. Am I expected to pass all 10 cases?
+
+No. Solve as many cases as possible with a reliable, general strategy. We also
+evaluate your engineering decisions, experimentation, code quality, and failure
+analysis. There is no published minimum score.
+
+### 7. Are the visible tests the complete evaluation?
+
+No. Each task also has private regression tests. A solution earns credit only
+when both visible and private tests pass, so avoid narrowly hardcoding visible
+assertions or expected output.
+
+### 8. Must I run all 10 cases after every variation?
+
+No. During development, you may run only the cases relevant to a particular
+change. Clearly record what you ran. You must run all 10 public cases on your
+final `agent.py` and report that result.
+
+### 9. What counts as one meaningful variation?
+
+A variation changes agent behavior—for example file selection, context
+extraction, prompts, response parsing, patch validation, test strategy, retries,
+failure recovery, or stopping logic. Cosmetic renaming or wording-only edits do
+not count.
+
+### 10. What exactly should I submit?
+
+Submit only your final `agent.py` and a one-to-two-page `REPORT.md` or
+`REPORT.pdf`. Do not include your API key, modified tests, repository copies, or
+generated artifacts, and do not publish your solution publicly.
+
 ## Evaluation
 
 Each of the 10 cases is worth one point:
