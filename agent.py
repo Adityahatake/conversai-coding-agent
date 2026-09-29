@@ -23,28 +23,21 @@ from typing import Any
 
 
 SYSTEM_PROMPT = """
-You are a coding agent working inside a large Python repository.
-
-Solve the user's task by inspecting files, making a focused source-code change,
-and running tests. Return exactly one JSON object on every turn.
+You are an expert Python engineer fixing a bug in pytest.
+The task, visible test, and target source file are already provided in the prompt.
+Your primary action on turn 1 must be `patch_file` (or `write_file`) with the minimal correct fix.
+Do NOT re-read the target file or test file. Tests are run automatically after editing.
 
 Available actions:
-{"action":"list_files"}
-{"action":"read_file","path":"relative/path.py"}
-{"action":"write_file","path":"relative/path.py","content":"complete file"}
-{"action":"patch_file","path":"relative/path.py","replacements":[{"old":"exact existing text","new":"replacement text"}]}
-{"action":"run_tests"}
-{"action":"finish","summary":"what happened"}
-
-`patch_file` is preferred for large files. Each replacement may include an
-optional 1-based `occurrence` when its old text appears more than once.
+{"action":"patch_file","path":"src/...","replacements":[{"old":"exact existing code","new":"replacement code"}]}
+{"action":"write_file","path":"src/...","content":"full file"}
+{"action":"read_file","path":"..."}
+{"action":"finish","summary":"summary"}
 
 Rules:
-- Paths explicitly named in the task may be read directly without listing files.
-- Inspect the visible test and relevant implementation before editing.
-- Make the smallest correct change and never edit tests.
-- Anticipate hidden regression tests instead of overfitting the visible test.
-- Run tests after editing.
+- For `patch_file`, `old` MUST match the existing source code character-for-character including indentation.
+- Include 1-3 lines of surrounding context in `old` to guarantee uniqueness.
+- Never edit test files. Write general, clean fixes that preserve existing functionality.
 """.strip()
 
 
@@ -83,9 +76,32 @@ def execute_action(action: dict[str, Any], tools: Any) -> str:
 
 
 def solve(task: str, tools: Any, llm: Any) -> str:
+    test_content = ""
+    try:
+        test_content = tools.read_file("tests/test_task.py")
+    except Exception:
+        pass
+
+    target_path = None
+    source_content = ""
+    import re
+    match = re.search(r"src/[a-zA-Z0-9_/]+\.py", task)
+    if match:
+        target_path = match.group(0)
+        try:
+            source_content = tools.read_file(target_path)
+        except Exception:
+            pass
+
+    user_content = task
+    if test_content:
+        user_content += f"\n\nVisible test (tests/test_task.py):\n```python\n{test_content}\n```"
+    if target_path and source_content:
+        user_content += f"\n\nSource code ({target_path}):\n```python\n{source_content}\n```"
+
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": task},
+        {"role": "user", "content": user_content},
     ]
 
     for _ in range(5):
@@ -96,8 +112,14 @@ def solve(task: str, tools: Any, llm: Any) -> str:
             if action["action"] == "finish":
                 return str(action.get("summary", "Finished"))
             result = execute_action(action, tools)
-            if action["action"] == "run_tests" and result.startswith("Exit code: 0"):
-                return "Implemented the fix and tests pass"
+            if action["action"] == "run_tests":
+                if result.startswith("Exit code: 0"):
+                    return "Implemented the fix and tests pass"
+            elif action["action"] in ("patch_file", "write_file"):
+                test_output = tools.run_tests()
+                if test_output.startswith("Exit code: 0"):
+                    return "Implemented the fix and tests pass"
+                result += f"\nAutomatic test run failed:\n{test_output}"
         except Exception as error:
             result = f"ACTION_ERROR: {type(error).__name__}: {error}"
         messages.append({"role": "user", "content": f"Tool result:\n{result}"})
